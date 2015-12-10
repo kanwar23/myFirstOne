@@ -27,6 +27,7 @@ namespace DrawerLayoutTutorial
 
 	public class MainActivity : Activity
 	{
+		string _userId = "har";
 		DrawerLayout mDrawerLayout;
 		List<string> mLeftItems = new List<string> ();
 
@@ -207,10 +208,11 @@ namespace DrawerLayoutTutorial
 			// code to handle ChildClick Event
 			mListExView.ChildClick += mListExView_ChildClick;
 
+			connectMaster (1);
 	
 		}
 
-		MobileServiceClient client1;
+
 		IMobileServiceSyncTable<OutlookMailItem> outlookMasterStoreTable;
 		public List<string> mailItems;
 
@@ -251,8 +253,9 @@ namespace DrawerLayoutTutorial
 			try {
 				
 
-				mailItems = await outlookMasterStoreTable.Where (O => O.SearchMasterItemId == idOfPanel)
-					.Select (o => o.SenderName + ':' + o.Subject + ':' + o.To).ToListAsync ();
+				mailItems = await outlookMasterStoreTable.OrderBy(o=>o.ReceivedTime)
+					.Where (O => O.SearchMasterItemId == idOfPanel && O.UserID == _userId)
+					.Select (o => o.SenderName + ':' + o.Subject + ':' + o.To + ':' + o.ReceivedTime ).ToListAsync ();
 
 				if (mailItems.Count == 0) {
 					CreateAndShowDialog ("No Records Found", "Choose another option");
@@ -270,62 +273,6 @@ namespace DrawerLayoutTutorial
 		}
 
 
-//		public async void mailItemsCall (string idOfPanel)
-//		{
-//			try {
-//				client1 = new MobileServiceClient ("https://testmobileservice-pb.azure-mobile.net/", "gvMFfuXlwQexmTVMhvcvywmbbzCBnV82");
-//				string path = System.IO.Path.Combine (System.Environment.GetFolderPath (System.Environment.SpecialFolder.Personal), "local.db");
-//
-//				if (!File.Exists (path)) {
-//					File.Create (path).Dispose ();
-//				}
-//
-//
-//				var store = new MobileServiceSQLiteStore (path);
-//				store.DefineTable<OutlookMailItem> ();
-//
-//				await client1.SyncContext.InitializeAsync (store);
-//
-//				outlookMasterStoreTable = client1.GetSyncTable<OutlookMailItem> ();
-//
-//
-//				await fetchMailItems (idOfPanel);
-//			} catch {
-//
-//				CreateAndShowDialog ("Cannot connect to internet", "Connection Problem");
-//				progressBar.Visibility = ViewStates.Gone;
-//
-//			}
-//		}
-//
-//
-//		async Task fetchMailItems (string idOfPanel)
-//		{
-//
-//			try {
-//				await client1.SyncContext.PushAsync ();
-//				await outlookMasterStoreTable.PullAsync (null, outlookMasterStoreTable.CreateQuery ());
-//
-//				mailItems = await outlookMasterStoreTable.Where (O => O.SearchMasterItemId == idOfPanel)
-//					.Select (o => o.SenderName + ':' + o.Subject + ':' + o.To).ToListAsync ();
-//
-//				if (mailItems.Count == 0) {
-//					CreateAndShowDialog ("No Records Found", "Choose another option");
-//					progressBar.Visibility = ViewStates.Gone;
-//				} else {
-//					azureAdap.AddAll (mailItems);
-//					tempListView.Adapter = azureAdap;
-//				}
-//			} catch {
-//				CreateAndShowDialog ("ERROR IN CONNECTION", "Connection Problem");
-//				progressBar.Visibility = ViewStates.Gone;
-//			}
-//
-//			progressBar.Visibility = ViewStates.Gone;
-//		}
-//
-
-
 		#region code for listViewAzure
 
 		//Code for ListViewAzure
@@ -341,19 +288,21 @@ namespace DrawerLayoutTutorial
 		int lenPanelItemTillName, lenPanelItemTillId, lenMasterItem;
 		string newPanelItem;
 
+		const string applicationURL = @"https://testmobileservice-pb.azure-mobile.net/";
+		const string applicationKey = @"gvMFfuXlwQexmTVMhvcvywmbbzCBnV82";
 
 
-
-		public async void connectMaster ()
+		public async void connectMaster (int flag)
 		{
 			try {
-				client = new MobileServiceClient ("https://testmobileservice-pb.azure-mobile.net/", "gvMFfuXlwQexmTVMhvcvywmbbzCBnV82");
+				client = new MobileServiceClient (applicationURL,applicationKey);
 
 				path = System.IO.Path.Combine (System.Environment.GetFolderPath (System.Environment.SpecialFolder.Personal), "local.db");
 
 				if (!File.Exists (path)) {
 					File.Create (path).Dispose ();
 				}
+
 
 
 				var store = new MobileServiceSQLiteStore (path);
@@ -365,7 +314,7 @@ namespace DrawerLayoutTutorial
 				panelItemStoreTable = client.GetSyncTable<PanelItem> ();
 				panelMasterItemStoreTable = client.GetSyncTable<PanelMasterItem> ();
 				outlookMasterStoreTable = client.GetSyncTable<OutlookMailItem>();
-				await SyncAsync ();
+				await SyncAsync (flag);
 
 
 			} catch {
@@ -374,20 +323,25 @@ namespace DrawerLayoutTutorial
 			}
 		}
 
-		async Task  SyncAsync ()
+		async Task  SyncAsync (int flag)
 		{
 			try {
 		
-				await client.SyncContext.PushAsync ();
-				await panelItemStoreTable.PullAsync (null, panelItemStoreTable.CreateQuery ());
-				await panelMasterItemStoreTable.PullAsync (null, panelMasterItemStoreTable.CreateQuery ());
-				await outlookMasterStoreTable.PullAsync (null, outlookMasterStoreTable.CreateQuery ());
+				//await client.SyncContext.PushAsync ();
 
-				listofMasterPanel = await panelMasterItemStoreTable.Select (j => j.Id + ',' + j.PanelName).ToListAsync ();
+				//await panelMasterItemStoreTable.PullAsync ("PanelItem",panelMasterItemStoreTable.CreateQuery());
+				//string z = "har";
+				//await panelItemStoreTable.PullAsync ("PanelMaster12" , panelItemStoreTable.CreateQuery());
+						
+			
+				listofMasterPanel = await panelMasterItemStoreTable.Where(j=>j.UserID== _userId)
+					.Select (j => j.Id + ',' + j.PanelName).ToListAsync ();
 
-				listofPanelItem = await panelItemStoreTable.OrderByDescending (j => j.MasterPanelID)
-					.Select (i => i.MasterPanelID + ',' + i.PanelName + ':' + i.Id).ToListAsync ();
+				listofPanelItem = await panelItemStoreTable.OrderByDescending (j => j.MasterPanelID).Where(j=>j.UserID== _userId)
+					.Select (i => i.MasterPanelID + ',' + i.PanelName + ':' + i.Id ).ToListAsync ();
 
+			
+				newListForSpin.Clear();
 				NewParentItems.Clear ();
 				dictPanelItemsForMail.Clear ();
 
@@ -420,29 +374,40 @@ namespace DrawerLayoutTutorial
 							childNewMail.Add (panelItem);
 							child.Add (newPanelItem); 
 
+
 							if (NewParentItems.ContainsKey (newMasterItem)) {
 
 								NewParentItems [newMasterItem].AddRange (child);
 								dictPanelItemsForMail [newMasterItem].AddRange (childNewMail);
 
-								newListForSpin.Add (newMasterItem);
-								appendSpinner (spinMasterPanel, newListForSpin, spinnerArrayAdapter, First);
-
 							} else {
-								newListForSpin.Add (newMasterItem);
+								
 								NewParentItems [newMasterItem] = child;
 								dictPanelItemsForMail [newMasterItem] = childNewMail;
-								appendSpinner (spinMasterPanel, newListForSpin, spinnerArrayAdapter, First);
+
 
 							}
 						}
 
 					}
 				}
-				adapter = new myListViewAdap (NewParentItems);
-				adapter.setInflater ((LayoutInflater)GetSystemService (Context.LayoutInflaterService), this);
+
+				foreach( var z in NewParentItems.Keys)
+				{
+					if(NewParentItems[z].Count !=0)
+						newListForSpin.Add(z);
+				}
+
+				if(NewParentItems.Count != 0)
+				{
+					appendSpinner (spinMasterPanel, newListForSpin, spinnerArrayAdapter, First);
+					adapter = new myListViewAdap (NewParentItems);
+					adapter.setInflater ((LayoutInflater)GetSystemService (Context.LayoutInflaterService), this);
+					mListExView.SetAdapter (adapter);
+				}
+
 				progressBar.Visibility = ViewStates.Gone;
-				mListExView.SetAdapter (adapter);
+
 
 
 
@@ -452,9 +417,13 @@ namespace DrawerLayoutTutorial
 				Console.WriteLine (e);
 			}
 
-			mDrawerLayout.OpenDrawer (leftDrawerLinearLayoutId);
+			if(flag==0)
+				mDrawerLayout.OpenDrawer (leftDrawerLinearLayoutId);
 		}
 
+
+
+	
 
 		void CreateAndShowDialog (string message, string title)
 		{
@@ -470,6 +439,7 @@ namespace DrawerLayoutTutorial
 
 		public void  appendSpinner (Spinner spinMasterPanel, List<string> spinnerParentItems, ArrayAdapter<string> spinnerArrayAdapter, List<string> First)	//Appending more items in the spinner
 		{
+			
 			spinnerArrayAdapter.Clear ();
 			spinnerArrayAdapter.NotifyDataSetChanged ();
 			spinnerArrayAdapter.AddAll (First);
@@ -516,7 +486,7 @@ namespace DrawerLayoutTutorial
 			case Resource.Id.syncAzureData:
 				progressBar.Visibility = ViewStates.Visible;
                 //connectMasterStore();
-				connectMaster ();
+				connectMaster (0);
 
 				return true;
 
